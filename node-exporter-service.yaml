@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: node-exporter
+  namespace: kube-system
+  annotations:
+    # 有的应用具有暴露容器内具体进程性能指标的需求，比如node-exporter本身是收集节点数据的，而且这个东西是以容器运行，服务端需要通过容器来获取物理节点数据样本，所以
+    # 容器需要暴露然后服务端做采集，那么服务端该如何识别它该采集哪些呢？就是通过这个 annotations 来做约定，服务端也是根据这个约定来抓取数据的。对应在服务端的配置文件中 source_labels 来设置匹配
+    # 书写格式是这样的 __meta_kubernetes_service_annotation_prometheus_io_scrape 
+    prometheus.io/scrape: "true"  # 表明该Service需要被Promethues发现并采集数据
+  labels:
+    kubernetes.io/cluster-service: "true"
+    addonmanager.kubernetes.io/mode: Reconcile
+    kubernetes.io/name: "NodeExporter"
+spec:
+  clusterIP: None
+  ports:
+    - name: metrics
+      port: 9100
+      protocol: TCP
+      targetPort: 9100
+  selector:
+    k8s-app: node-exporter

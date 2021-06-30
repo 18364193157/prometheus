@@ -1,0 +1,57 @@
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: node-exporter 
+  namespace: kube-system 
+  labels:
+    k8s-app: node-exporter
+    kubernetes.io/cluster-service: "true"
+    addonmanager.kubernetes.io/mode: Reconcile
+    version: v0.17.0
+spec:  # 这里下面没有定义selector，如果不定义那么将使用POD的template中相同的标签。
+  updateStrategy:  # 定义更新策略，在什么情况下用一个新的POD来替换当前POD，这里的策略是 OnDelet，也就是当前POD被删除的时候使用新的POD来代替它
+    type: OnDelete
+  template:  # POD的template，也就是描述要被建立的POD
+    metadata:
+      labels:  # 这个POD如何被DaemonSet选中呢，其实就是靠这些标签，虽然上面没有定义标签选择器，没有定义就表示使用和POD一样的标签内容来选择
+        k8s-app: node-exporter
+        version: v0.17.0
+      annotations:
+        scheduler.alpha.kubernetes.io/critical-pod: ''
+    spec:
+      priorityClassName: system-node-critical
+      containers:
+        - name: prometheus-node-exporter
+          image: "prom/node-exporter:v0.17.0"
+          imagePullPolicy: "IfNotPresent"
+          args:
+            - --path.procfs=/host/proc
+            - --path.sysfs=/host/sys
+          ports:
+            - name: metrics
+              containerPort: 9100
+              hostPort: 9100
+          volumeMounts:  # 把这两个名称挂载到容器的/host/目录下，并且设置为只读
+            - name: proc
+              mountPath: /host/proc
+              readOnly:  true
+            - name: sys
+              mountPath: /host/sys
+              readOnly: true
+          resources:  # 定义容器的资源使用
+            limits:
+              cpu: 10m
+              memory: 50Mi
+            requests:
+              cpu: 10m
+              memory: 50Mi
+      hostNetwork: true  # 共享主机网络，使用宿主机网络名称空间，为了获取主机的网络指标
+      hostPID: true  # 共享主机PID，也就是使用宿主机网络名称空间，为了获取主机PID指标
+      hostIPC: true # 共享主机IP，为了获取主机IPC指标
+      volumes:  # 定义存储卷，使用本机的两个目录，映射到这2个名称，为什么要挂载这2个目录呢？因为/proc和/sys是伪文件系统里面记录了很多当前系统的各种信息
+        - name: proc
+          hostPath:
+            path: /proc
+        - name: sys
+          hostPath:
+            path: /sys
